@@ -23,6 +23,13 @@ var yAxis = d3.svg.axis()
   .scale(scaleY)
   .orient("left");
 
+var tip = d3.tip()
+  .attr('class', 'd3-tip')
+  .offset([-10, 0])
+  .html(function(d) {
+    return "<strong>Counts:</strong> <span style='color:red'>" + d.counts.media + "</span>";
+  })
+
 //create svg
 var svg = d3.select("body").append("svg")
   .attr("width", width + margin.left + margin.right)
@@ -71,7 +78,9 @@ d3.json('/igMediaCounts', function(error, data) {
     .attr("x", function(d) { return scaleX(d.username); })
     .attr("width", scaleX.rangeBand())
     .attr("y", function(d) { return scaleY(d.counts.media); })
-    .attr("height", function(d) { return height - scaleY(d.counts.media); });
+    .attr("height", function(d) { return height - scaleY(d.counts.media); })
+    .on('mouseover', tip.show)
+    .on('mouseout', tip.hide);
 
   bars.append('rect')
       .attr('width', function() { return scaleX.rangeBand() })
@@ -80,7 +89,9 @@ d3.json('/igMediaCounts', function(error, data) {
       .on('mouseover', tip.show)
       .on('mouseout', tip.hide);
 
-    d3.select("input").on("change", change);
+
+
+  d3.select("input").on("change", change);
 
   /*var sortTimeout = setTimeout(function() {
     d3.select("input").property("checked", true).each(change);
@@ -133,3 +144,8 @@ d3.json('/igMediaCounts', function(error, data) {
         .attr("dy", ".15em");
   }
 });
+
+function type(d) {
+  d.counts.media = +d.counts.media;
+  return d;
+}
