@@ -18,6 +18,7 @@ var Facebook = require('fbgraph');
 var Instagram = require('instagram-node-lib');
 var async = require('async');
 var bcrypt   = require('bcrypt-nodejs');
+var flash    = require('connect-flash');
 var app = express();
 
 var models = require('./models');
@@ -39,6 +40,11 @@ db.on('error', console.error.bind(console, 'connection error:'));
 db.once('open', function (callback) {
   console.log("Database connected succesfully.");
 });
+
+
+/******************************************************************/
+/************************* PASSPORT SETUP *************************/
+/******************************************************************/
 
 // Passport session setup.
 //   To support persistent login sessions, Passport needs to be able to
@@ -120,12 +126,12 @@ passport.use('local-login', new LocalStrategy({
         return done(err);
 
     // if no user is found, return the message
-    if (!user)
-        return done(null, false, req.flash('loginMessage', 'No user found.')); // req.flash is the way to set flashdata using connect-flash
-
+    if (!user) { 
+        return done(null, false, req.flash('loginMessage', 'No user with that email was found. Please register.')); // req.flash is the way to set flashdata using connect-flash
+    }
     // if the user is found but the password is wrong
     if (!user.validPassword(password))
-        return done(null, false, req.flash('loginMessage', 'Oops! Wrong password.')); // create the loginMessage and save it to session as flashdata
+        return done(null, false, req.flash('loginMessage', 'Oops! Wrong password. Please try again.')); // create the loginMessage and save it to session as flashdata
 
     // all is well, return successful user
     return done(null, user);
@@ -141,48 +147,72 @@ passport.use('local-login', new LocalStrategy({
 passport.use(new InstagramStrategy({
     clientID: INSTAGRAM_CLIENT_ID,
     clientSecret: INSTAGRAM_CLIENT_SECRET,
-    callbackURL: INSTAGRAM_CALLBACK_URL
+    callbackURL: INSTAGRAM_CALLBACK_URL,
+    passReqToCallback : true // allows us to pass in the req from our route (lets us check if a user is logged in or not)
   },
-  function(accessToken, refreshToken, profile, done) {
-    // asynchronous verification, for effect...
-   models.User.findOne({
-    "ig_id": profile.id
-   }, function(err, user) {
-      if (err) {
-        return done(err); 
-      }
-      
-      //didnt find a user
-      if (!user) {
-        newUser = new models.User({
-          name: profile.username, 
-          ig_id: profile.id,
-          ig_access_token: accessToken
-        });
+  function(req, accessToken, refreshToken, profile, done) {
 
-        newUser.save(function(err) {
-          if(err) {
-            console.log(err);
-          } else {
-            console.log('user: ' + newUser.name + " created.");
-          }
-          return done(null, newUser);
-        });
+    // asynchronous
+    process.nextTick(function() {
+
+      // check if the user is already logged in
+      if (!req.user) {
+
+          // find the user in the database based on their facebook id
+          User.findOne({ 'ig_id' : profile.id }, function(err, user) {
+
+              // if there is an error, stop everything and return that
+              // ie an error connecting to the database
+              if (err)
+                  return done(err);
+
+              // if the user is found, then log them in
+              if (user) {
+                  return done(null, user); // user found, return that user
+              } else {
+                  // if there is no user found with that facebook id, create them
+                  var newUser            = new User();
+
+                  // set all of the facebook information in our user model
+                  newUser.ig_id    = profile.id; // set the users facebook id                   
+                  newUser.ig_access_token = accessToken; // we will save the token that facebook provides to the user                    
+
+                  // save our user to the database
+                  newUser.save(function(err) {
+                      if (err)
+                          throw err;
+
+                      // if successful, return the new user
+                      return done(null, newUser);
+                  });
+              }
+
+          });
+
       } else {
-        //update user here
-        user.ig_access_token = accessToken;
-        user.save();
-        process.nextTick(function () {
-          // To keep the example simple, the user's Instagram profile is returned to
-          // represent the logged-in user.  In a typical application, you would want
-          // to associate the Instagram account with a user record in your database,
-          // and return that user instead.
-          return done(null, user);
+
+        models.User.findOne({email: req.user.email}, function (err, user) {
+
+          user.ig_id    = profile.id;
+          user.ig_access_token = accessToken;
+
+          user.save(function (err) {
+            if(err) {
+              console.error('ERROR! CAN NOT UPDATE USER');
+            }
+            return done(null, user);
+
+          });
         });
       }
-   });
+    });
   }
 ));
+
+
+/******************************************************************/
+/*************************** SETUP APP ****************************/
+/******************************************************************/
 
 
 //Configures the Template engine
@@ -198,9 +228,14 @@ app.use(session({ secret: 'keyboard cat',
                   resave: true}));
 app.use(passport.initialize());
 app.use(passport.session());
+app.use(flash());
 
 //set environment ports and start application
 app.set('port', process.env.PORT || 3000);
+
+/******************************************************************/
+/********************** ENSURE AUTHENTICATED **********************/
+/******************************************************************/
 
 // Simple route middleware to ensure user is authenticated.
 //   Use this route middleware on any resource that needs to be protected.  If
@@ -223,17 +258,89 @@ function ensureAuthenticatedInstagram(req, res, next) {
 }
 
 
+/******************************************************************/
+/************************ AUTHENTICATE CODE ***********************/
+/******************************************************************/
+
+app.get('/auth/instagram',
+  passport.authenticate('instagram'),
+  function(req, res){
+    // The request will be redirected to Instagram for authentication, so this
+    // function will not be called.
+  });
+
+app.get('/auth/instagram/callback', 
+  passport.authenticate('instagram', { failureRedirect: '/login', approvalPrompt: 'force'}),
+  function(req, res) {
+    res.redirect('/account');
+  });
+
+
+/******************************************************************/
+/************************* AUTHORIZE CODE *************************/
+/******************************************************************/
+
+// instagram -------------------------------
+// send to instagram to do the authentication
+app.get('/connect/instagram', passport.authorize('instagram'));
+
+// handle the callback after facebook has authorized the user
+app.get('/connect/instagram/callback',
+    passport.authorize('instagram', {
+        successRedirect : '/account',
+        failureRedirect : '/'
+    }));
+
+// facebook -------------------------------
+// send to facebook to do the authentication
+app.get('/connect/facebook', passport.authorize('facebook', { scope : 'email' }));
+
+// handle the callback after facebook has authorized the user
+app.get('/connect/facebook/callback',
+    passport.authorize('facebook', {
+        successRedirect : '/account',
+        failureRedirect : '/'
+    }));
+
+// twitter --------------------------------
+// send to twitter to do the authentication
+app.get('/connect/twitter', passport.authorize('twitter', { scope : 'email' }));
+
+// handle the callback after twitter has authorized the user
+app.get('/connect/twitter/callback',
+    passport.authorize('twitter', {
+        successRedirect : '/account',
+        failureRedirect : '/'
+    }));
+
+
+// google ---------------------------------
+// send to google to do the authentication
+app.get('/connect/google', passport.authorize('google', { scope : ['profile', 'email'] }));
+
+// the callback after google has authorized the user
+app.get('/connect/google/callback',
+    passport.authorize('google', {
+        successRedirect : '/account',
+        failureRedirect : '/'
+    }));
+
+
+
+/******************************************************************/
+/*********************** USER DEFINED ROUTES **********************/
+/******************************************************************/
 //routes
 app.get('/', function(req, res){
   res.render('login');
 });
 
 app.get('/login', function(req, res){
-  res.render('login', { user: req.user });
+  res.render('login', { user: req.user, message: req.flash('loginMessage') });
 });
 
 app.get('/account', ensureAuthenticated, function(req, res){
-  res.render('account', {user: req.user});
+  res.render('account', { user: req.user });
 });
 
 app.get('/igphotos', ensureAuthenticatedInstagram, function(req, res){
@@ -301,19 +408,6 @@ app.get('/igMediaCounts', ensureAuthenticatedInstagram, function(req, res){
   });
 });
 
-app.get('/auth/instagram',
-  passport.authenticate('instagram'),
-  function(req, res){
-    // The request will be redirected to Instagram for authentication, so this
-    // function will not be called.
-  });
-
-app.get('/auth/instagram/callback', 
-  passport.authenticate('instagram', { failureRedirect: '/login'}),
-  function(req, res) {
-    res.redirect('/account');
-  });
-
 app.get('/logout', function(req, res){
   req.logout();
   res.redirect('/');
@@ -340,6 +434,12 @@ app.get('/visualization', ensureAuthenticatedInstagram, function (req, res){
 app.get('/c3visualization', ensureAuthenticatedInstagram, function (req, res){
   res.render('c3visualization');
 }); 
+
+
+
+/******************************************************************/
+/*********************** CREATE SERVER CODE ***********************/
+/******************************************************************/
 
 http.createServer(app).listen(app.get('port'), function() {
     console.log('Express server listening on port ' + app.get('port'));

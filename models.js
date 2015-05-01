@@ -16,7 +16,12 @@ var userSchema = mongoose.Schema({
 	"ig_access_token": { type: String },
 	"fb_access_token": { type: String },
 	"tw_access_token": { type: String },
-	"gg_access_token": { type: String }
+	"gg_access_token": { type: String },
+
+	"ig_exist": { type: Boolean },
+	"fb_exist": { type: Boolean },
+	"tw_exist": { type: Boolean },
+	"gg_exist": { type: Boolean }
 });
 
 // methods ======================
