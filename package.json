@@ -1,11 +1,17 @@
 {
-  "name": "mywebapp",
+  "name": "SocialGraph",
   "version": "0.0.1",
-  "author": "Alex Yang, Brian Soe, Purvi Desai",
-  "description": "Assignment 1 for COGS 121",
+  "author": "Alex Yang, Brian Soe, Purvi Desai, Kane Chong, Philip Ngo",
+  "description": "Assignment 2 for COGS 121",
   "scripts": {
     "start": "node app.js"
   },
+
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khchong/Assignment2-2015.git"
+  },
+
   "dependencies": {
     "async": "^0.9.0",
     "body-parser": "1.12.2",
@@ -16,11 +22,16 @@
     "express-session": "1.10.4",
     "fbgraph": "^0.3.0",
     "instagram-node-lib": "^0.1.1",
+    "connect-flash" : "~0.1.1",
     "mongoose": "^4.0.1",
     "mongoose-findorcreate": "^0.1.2",
     "passport": "0.2.1",
+    "passport-local": "*",
     "passport-facebook": "^2.0.0",
-    "passport-instagram": "0.1.2"
+    "passport-instagram": "0.1.2",
+    "passport-twitter": "*",
+    "passport-google-oauth": "*",
+    "bcrypt-nodejs": "latest"
   },
   "engines": {
     "node": "0.10.x"

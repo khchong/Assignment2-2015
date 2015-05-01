@@ -1,7 +1,11 @@
 //dependencies for each module used
 var express = require('express');
 var passport = require('passport');
+var LocalStrategy = require('passport-local').Strategy;
 var InstagramStrategy = require('passport-instagram').Strategy;
+var FacebookStrategy = require('passport-facebook').Strategy;
+var TwitterStrategy = require('passport-twitter').Strategy;
+var GoogleStrategy = require('passport-google-oauth').Strategy;
 var http = require('http');
 var path = require('path');
 var handlebars = require('express-handlebars');
@@ -13,13 +17,15 @@ var mongoose = require('mongoose');
 var Facebook = require('fbgraph');
 var Instagram = require('instagram-node-lib');
 var async = require('async');
+var bcrypt   = require('bcrypt-nodejs');
 var app = express();
 
-//local dependencies
 var models = require('./models');
 
-//client id and client secret here, taken from .env
+// load env variables
 dotenv.load();
+
+// Instagram environment set up
 var INSTAGRAM_CLIENT_ID = process.env.INSTAGRAM_CLIENT_ID;
 var INSTAGRAM_CLIENT_SECRET = process.env.INSTAGRAM_CLIENT_SECRET;
 var INSTAGRAM_CALLBACK_URL = process.env.INSTAGRAM_CALLBACK_URL;
@@ -48,6 +54,84 @@ passport.serializeUser(function(user, done) {
 passport.deserializeUser(function(obj, done) {
   done(null, obj);
 });
+
+
+// Function that handles saving a user who is local to OUR webapp
+passport.use('local-signup', new LocalStrategy({
+    // by default, local strategy uses username and password, we will override with email
+    usernameField : 'email',
+    passwordField : 'password',
+    passReqToCallback : true // allows us to pass back the entire request to the callback
+
+  }, function(req, email, password, done) {
+
+    // User.findOne wont fire unless data is sent back
+    process.nextTick(function() {
+
+      // find a user whose email is the same as the forms email
+      // we are checking to see if the user trying to login already exists
+      models.User.findOne({ 'email' :  email }, function(err, user) {
+
+        // if there are any errors, return the error
+        if (err)
+            return done(err);
+
+        // check to see if theres already a user with that email
+        if (user) {
+            return done(null, false, req.flash('signupMessage', 'That email is already taken.'));
+        } else {
+
+            // if there is no user with that email
+            // create the user
+            var newUser            = new models.User();
+
+            // set the user's local credentials
+            newUser.email    = email;
+            newUser.password = newUser.generateHash(password);
+            newUser.fname    = req.body.fname;
+            newUser.lname    = req.body.lname;
+
+            // save the user
+            newUser.save(function(err) {
+                if (err)
+                    throw err;
+                return done(null, newUser);
+            });
+        }
+
+      });    
+
+    });
+
+}));
+
+passport.use('local-login', new LocalStrategy({
+  // by default, local strategy uses username and password, we will override with email
+  usernameField : 'email',
+  passwordField : 'password',
+  passReqToCallback : true // allows us to pass back the entire request to the callback
+}, function(req, email, password, done) { // callback with email and password from our form
+
+  // find a user whose email is the same as the forms email
+  // we are checking to see if the user trying to login already exists
+  models.User.findOne({ 'email' :  email }, function(err, user) {
+    // if there are any errors, return the error before anything else
+    if (err)
+        return done(err);
+
+    // if no user is found, return the message
+    if (!user)
+        return done(null, false, req.flash('loginMessage', 'No user found.')); // req.flash is the way to set flashdata using connect-flash
+
+    // if the user is found but the password is wrong
+    if (!user.validPassword(password))
+        return done(null, false, req.flash('loginMessage', 'Oops! Wrong password.')); // create the loginMessage and save it to session as flashdata
+
+    // all is well, return successful user
+    return done(null, user);
+  });
+
+}));
 
 
 // Use the InstagramStrategy within Passport.
@@ -217,15 +301,6 @@ app.get('/igMediaCounts', ensureAuthenticatedInstagram, function(req, res){
   });
 });
 
-app.get('/visualization', ensureAuthenticatedInstagram, function (req, res){
-  res.render('visualization');
-}); 
-
-
-app.get('/c3visualization', ensureAuthenticatedInstagram, function (req, res){
-  res.render('c3visualization');
-}); 
-
 app.get('/auth/instagram',
   passport.authenticate('instagram'),
   function(req, res){
@@ -243,6 +318,28 @@ app.get('/logout', function(req, res){
   req.logout();
   res.redirect('/');
 });
+
+// Register a new user to our SocialGraph webapp
+app.post('/registerUser', passport.authenticate('local-signup', {
+  successRedirect : '/account', // redirect to the secure account section
+  failureRedirect : '/signup', // redirect back to the signup page if there is an error
+  failureFlash : true // allow flash messages
+}));
+
+// Successfully login after authenticating user
+app.post('/login', passport.authenticate('local-login', {
+  successRedirect : '/account', // redirect to the secure account section
+  failureRedirect : '/login', // redirect back to the signup page if there is an error
+  failureFlash : true // allow flash messages
+}));
+
+app.get('/visualization', ensureAuthenticatedInstagram, function (req, res){
+  res.render('visualization');
+}); 
+
+app.get('/c3visualization', ensureAuthenticatedInstagram, function (req, res){
+  res.render('c3visualization');
+}); 
 
 http.createServer(app).listen(app.get('port'), function() {
     console.log('Express server listening on port ' + app.get('port'));
