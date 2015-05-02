@@ -175,6 +175,8 @@ passport.use(new InstagramStrategy({
   },
   function(req, accessToken, refreshToken, profile, done) {
 
+    ensureAuthenticated;
+
     // asynchronous
     process.nextTick(function() {
 
@@ -194,7 +196,7 @@ passport.use(new InstagramStrategy({
                   return done(null, user); // user found, return that user
               } else {
                   // if there is no user found with that facebook id, create them
-                  var newUser            = new User();
+                  var newUser            = new models.User();
 
                   // set all of the facebook information in our user model
                   newUser.ig_id    = profile.id; // set the users facebook id                   
@@ -246,6 +248,8 @@ passport.use(new FacebookStrategy({
   },
   function(req, accessToken, refreshToken, profile, done) {
 
+    ensureAuthenticated;
+
     // asynchronous
     process.nextTick(function() {
 
@@ -265,7 +269,7 @@ passport.use(new FacebookStrategy({
                   return done(null, user); // user found, return that user
               } else {
                   // if there is no user found with that facebook id, create them
-                  var newUser            = new User();
+                  var newUser            = new models.User();
 
                   // set all of the facebook information in our user model
                   newUser.fb_id    = profile.id; // set the users facebook id                   
@@ -318,6 +322,8 @@ passport.use(new TwitterStrategy({
   },
   function(req, accessToken, refreshToken, profile, done) {
 
+    ensureAuthenticated;
+
     // asynchronous
     process.nextTick(function() {
 
@@ -337,7 +343,7 @@ passport.use(new TwitterStrategy({
                   return done(null, user); // user found, return that user
               } else {
                   // if there is no user found with that facebook id, create them
-                  var newUser            = new User();
+                  var newUser            = new models.User();
 
                   // set all of the facebook information in our user model
                   newUser.tw_id    = profile.id; // set the users facebook id                   
