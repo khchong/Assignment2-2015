@@ -16,6 +16,7 @@ var dotenv = require('dotenv');
 var mongoose = require('mongoose');
 var graph = require('fbgraph');
 var Instagram = require('instagram-node-lib');
+var Twitter = require('Twitter');
 var async = require('async');
 var bcrypt   = require('bcrypt-nodejs');
 var flash    = require('connect-flash');
@@ -39,9 +40,21 @@ var FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET;
 var FACEBOOK_CALLBACK_URL = process.env.FACEBOOK_CALLBACK_URL;
 
 // Twitter environment set up
-var TWITTER_APP_ID = process.env.TWITTER_APP_ID;
-var TWITTER_APP_SECRET = process.env.TWITTER_APP_SECRET;
+var TWITTER_CONSUMER_KEY = process.env.TWITTER_CONSUMER_KEY;
+var TWITTER_CONSUMER_SECRET= process.env.TWITTER_CONSUMER_SECRET;
+var TWITTER_ACCESS_TOKEN_KEY = process.env.TWITTER_ACCESS_TOKEN_KEY;
+var TWITTER_ACCESS_TOKEN_SECRET = process.env.TWITTER_ACCESS_TOKEN_SECRET;
 var TWITTER_CALLBACK_URL = process.env.TWITTER_CALLBACK_URL;
+
+
+// setup twitter here
+var client = new Twitter({
+  consumer_key: TWITTER_CONSUMER_KEY,
+  consumer_secret: TWITTER_CONSUMER_SECRET,
+  access_token_key: TWITTER_ACCESS_TOKEN_KEY,
+  access_token_secret: TWITTER_ACCESS_TOKEN_SECRET,
+});
+
 
 //connect to database
 mongoose.connect(process.env.MONGODB_CONNECTION_URL);
@@ -169,7 +182,7 @@ passport.use(new InstagramStrategy({
       if (!req.user) {
 
           // find the user in the database based on their facebook id
-          User.findOne({ 'ig_id' : profile.id }, function(err, user) {
+          models.User.findOne({ 'ig_id' : profile.id }, function(err, user) {
 
               // if there is an error, stop everything and return that
               // ie an error connecting to the database
@@ -240,7 +253,7 @@ passport.use(new FacebookStrategy({
       if (!req.user) {
 
           // find the user in the database based on their facebook id
-          User.findOne({ 'fb_id' : profile.id }, function(err, user) {
+          models.User.findOne({ 'fb_id' : profile.id }, function(err, user) {
 
               // if there is an error, stop everything and return that
               // ie an error connecting to the database
@@ -298,8 +311,8 @@ passport.use(new FacebookStrategy({
 //   credentials (in this case, an accessToken, refreshToken, and Instagram
 //   profile), and invoke a callback with a user object.
 passport.use(new TwitterStrategy({
-    consumerKey: TWITTER_APP_ID,
-    consumerSecret: TWITTER_APP_SECRET,
+    consumerKey: TWITTER_CONSUMER_KEY,
+    consumerSecret: TWITTER_CONSUMER_SECRET,
     callbackURL: TWITTER_CALLBACK_URL,
     passReqToCallback : true // allows us to pass in the req from our route (lets us check if a user is logged in or not)
   },
@@ -312,7 +325,7 @@ passport.use(new TwitterStrategy({
       if (!req.user) {
 
           // find the user in the database based on their facebook id
-          User.findOne({ 'tw_id' : profile.id }, function(err, user) {
+          models.User.findOne({ 'tw_id' : profile.id }, function(err, user) {
 
               // if there is an error, stop everything and return that
               // ie an error connecting to the database
@@ -714,9 +727,19 @@ app.get('/fbLikeInfo', ensureAuthenticatedFacebook, function(req, res) {
 
       });
     });
-
 });
 
+app.get('/c3visualization2', ensureAuthenticatedTwitter, function(req, res) {
+
+  //var params = {screen_name: 'nodejs'};
+  client.get('statuses/home_timeline', function(error, tweets, response){
+    if (!error) {
+      console.log(tweets);
+    }
+
+    res.render('c3visualization2');
+  });
+});
 
 app.get('/logout', function(req, res){
   req.logout();

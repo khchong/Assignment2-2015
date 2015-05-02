@@ -21,6 +21,7 @@
 	<a href="/logout" class="btn btn-danger">Logout</a>
 </div>
 
+<div style="text-align: center;">
 
 {{#if user.ig_exist}}
 	<p>Disconnect your Instagram <a href="/unlink/instagram" class="btn btn-danger">Unlink</a></p>
@@ -44,7 +45,7 @@
 <br>
 
 <h3>C3 and D3 visualization for Instagram</h3>
-{{#if ig_exist}}
+{{#if user.ig_exist}}
 <a href="/c3visualization">view C3 visualization</a>
 <br>
 <a href="/visualization">view D3 visualization</a>
@@ -56,8 +57,18 @@
 
 <br>
 
+<h3>C3 visualization for Twitter</h3>
+{{#if user.tw_exist}}
+<a href="/c3visualization2">view C3 visualization (our implementation) </a>
+{{else}}
+	<h5 style="color:red;">You do not have a Twitter account connected! </h5>
+
+	<h5 style="color:red;">Please connect to a Twitter account using the Link Buttons above and you will be able to view this visualization.</h5>
+{{/if}}
+<br>
+
 <h3>D3 visualization for Facebook</h3>
-{{#if fb_exist}}
+{{#if user.fb_exist}}
 <a href="/d3visualization2">view D3 visualization (our implementation) </a>
 {{else}}
 	<h5 style="color:red;">You do not have a Facebook account connected! </h5>
@@ -65,3 +76,5 @@
 	<h5 style="color:red;">Please connect to a Facebook account using the Link Buttons above and you will be able to view this visualization.</h5>
 {{/if}}
 <br>
+
+</div>
