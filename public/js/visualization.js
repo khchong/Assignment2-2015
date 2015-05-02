@@ -84,8 +84,8 @@ d3.json('/igMediaCounts', function(error, data) {
 
   bars.append('rect')
       .attr('width', function() { return scaleX.rangeBand() })
-      .attr('height', function(d) { return height - scaleY(d.total) })
-      .attr('y', function(d) { return scaleY(d.total) })
+      //.attr('height', function(d) { return height - scaleY(d.total) })
+      //.attr('y', function(d) { return scaleY(d.total) })
       .on('mouseover', tip.show)
       .on('mouseout', tip.hide);
 
@@ -101,18 +101,6 @@ d3.json('/igMediaCounts', function(error, data) {
     clearTimeout(setTimeout(function() {
       d3.select("input").property("checked", true).each(change);
     }, 2000));
-
-    // Copy-on-write since tweens are evaluated after a delay.
-    /*var x0;
-    
-    if(this.checked) {
-      x0 = scaleX.domain(data.users
-        .sort(function(a, b) { return b.counts.media - a.counts.media; })
-        .map(function(d) { return d.username; }))
-        .copy();
-    } else {
-      x0 = scaleX.domain(data.users.map(function(d) { return d.username; })).copy();
-    }*/
 
     var x0 = scaleX.domain(data.users.sort(this.checked
         ? function(a, b) { return b.counts.media - a.counts.media; }

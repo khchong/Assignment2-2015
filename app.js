@@ -14,7 +14,7 @@ var session = require('express-session');
 var cookieParser = require('cookie-parser');
 var dotenv = require('dotenv');
 var mongoose = require('mongoose');
-var Facebook = require('fbgraph');
+var graph = require('fbgraph');
 var Instagram = require('instagram-node-lib');
 var async = require('async');
 var bcrypt   = require('bcrypt-nodejs');
@@ -32,6 +32,11 @@ var INSTAGRAM_CLIENT_SECRET = process.env.INSTAGRAM_CLIENT_SECRET;
 var INSTAGRAM_CALLBACK_URL = process.env.INSTAGRAM_CALLBACK_URL;
 Instagram.set('client_id', INSTAGRAM_CLIENT_ID);
 Instagram.set('client_secret', INSTAGRAM_CLIENT_SECRET);
+
+// Facebook environment set up
+var FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID;
+var FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET;
+var FACEBOOK_CALLBACK_URL = process.env.FACEBOOK_CALLBACK_URL;
 
 //connect to database
 mongoose.connect(process.env.MONGODB_CONNECTION_URL);
@@ -209,6 +214,74 @@ passport.use(new InstagramStrategy({
   }
 ));
 
+// Use the FacebookStrategy within Passport.
+//   Strategies in Passport require a `verify` function, which accept
+//   credentials (in this case, an accessToken, refreshToken, and Instagram
+//   profile), and invoke a callback with a user object.
+passport.use(new FacebookStrategy({
+    clientID: FACEBOOK_APP_ID,
+    clientSecret: FACEBOOK_APP_SECRET,
+    callbackURL: FACEBOOK_CALLBACK_URL,
+    passReqToCallback : true // allows us to pass in the req from our route (lets us check if a user is logged in or not)
+  },
+  function(req, accessToken, refreshToken, profile, done) {
+
+    // asynchronous
+    process.nextTick(function() {
+
+      // check if the user is already logged in
+      if (!req.user) {
+
+          // find the user in the database based on their facebook id
+          User.findOne({ 'fb_id' : profile.id }, function(err, user) {
+
+              // if there is an error, stop everything and return that
+              // ie an error connecting to the database
+              if (err)
+                  return done(err);
+
+              // if the user is found, then log them in
+              if (user) {
+                  return done(null, user); // user found, return that user
+              } else {
+                  // if there is no user found with that facebook id, create them
+                  var newUser            = new User();
+
+                  // set all of the facebook information in our user model
+                  newUser.fb_id    = profile.id; // set the users facebook id                   
+                  newUser.fb_access_token = accessToken; // we will save the token that facebook provides to the user                    
+
+                  // save our user to the database
+                  newUser.save(function(err) {
+                      if (err)
+                          throw err;
+
+                      // if successful, return the new user
+                      return done(null, newUser);
+                  });
+              }
+
+          });
+
+      } else {
+
+        models.User.findOne({email: req.user.email}, function (err, user) {
+
+          user.fb_id    = profile.id;
+          user.fb_access_token = accessToken;
+
+          user.save(function (err) {
+            if(err) {
+              console.error('ERROR! CAN NOT UPDATE USER');
+            }
+            return done(null, user);
+
+          });
+        });
+      }
+    });
+  }
+));
 
 /******************************************************************/
 /*************************** SETUP APP ****************************/
@@ -257,6 +330,12 @@ function ensureAuthenticatedInstagram(req, res, next) {
   res.redirect('/login');
 }
 
+function ensureAuthenticatedFacebook(req, res, next) {
+  if (req.isAuthenticated() && !!req.user.fb_id) { 
+    return next(); 
+  }
+  res.redirect('/login');
+}
 
 /******************************************************************/
 /************************ AUTHENTICATE CODE ***********************/
@@ -275,6 +354,18 @@ app.get('/auth/instagram/callback',
     res.redirect('/account');
   });
 
+app.get('/auth/facebook',
+  passport.authenticate('facebook'),
+  function(req, res){
+    // The request will be redirected to Instagram for authentication, so this
+    // function will not be called.
+  });
+
+app.get('/auth/facebook/callback', 
+  passport.authenticate('facebook', { failureRedirect: '/login', approvalPrompt: 'force'}),
+  function(req, res) {
+    res.redirect('/account');
+  });
 
 /******************************************************************/
 /************************* AUTHORIZE CODE *************************/
@@ -293,7 +384,7 @@ app.get('/connect/instagram/callback',
 
 // facebook -------------------------------
 // send to facebook to do the authentication
-app.get('/connect/facebook', passport.authorize('facebook', { scope : 'email' }));
+app.get('/connect/facebook', passport.authorize('facebook', { scope : ['email', 'user_photos', 'user_status', 'user_likes', 'user_friends', 'user_photos'] }));
 
 // handle the callback after facebook has authorized the user
 app.get('/connect/facebook/callback',
@@ -408,6 +499,58 @@ app.get('/igMediaCounts', ensureAuthenticatedInstagram, function(req, res){
   });
 });
 
+app.get('/fbLikeInfo', ensureAuthenticatedFacebook, function(req, res) {
+
+  graph.setAccessToken(req.user.fb_access_token);
+
+  graph.get("me", function(err, user) {
+
+    if(err) { console.log(err); }
+
+    graph.batch([
+      { method: "GET", relative_url: "me/likes?filter=stream&limit=50"}
+
+      ], function(err, data) {
+        if(err) { console.log(err); }
+
+        var likes_str_body = data[0].body;
+        var likes_json_body = eval("(" + likes_str_body + ")");
+
+        //console.log(likes_json_body);
+          
+        var pageQueries = [];
+        var arr = likes_json_body.data;
+
+        for( var i = 0; i < likes_json_body.data.length; ++i) {
+          //console.log(arr[i]);
+
+          pageQueries.push({method: "GET", relative_url: "" + arr[i].id + "?summary=true"});
+          
+        }
+
+        graph.batch(pageQueries, function(err, allPages) {
+          if(err) { console.log(err); }
+
+          var allJsonPages = { data: [] };
+
+          for( var j = 0; j < allPages.length; ++j) {
+            var jsonPage = eval("(" + allPages[j].body + ")");
+            
+            allJsonPages.data.push(jsonPage);
+          }
+
+          res.json(allJsonPages);
+        });
+
+        //console.log(pageQueries);
+        //res.json(likes_json_body);
+
+      });
+    });
+
+});
+
+
 app.get('/logout', function(req, res){
   req.logout();
   res.redirect('/');
@@ -435,6 +578,9 @@ app.get('/c3visualization', ensureAuthenticatedInstagram, function (req, res){
   res.render('c3visualization');
 }); 
 
+app.get('/d3visualization2', ensureAuthenticatedInstagram, function (req, res) {
+  res.render('d3visualization2');
+});
 
 
 /******************************************************************/
