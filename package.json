@@ -24,7 +24,6 @@
     "instagram-node-lib": "^0.1.1",
     "mongoose": "^4.0.1",
     "mongoose-findorcreate": "^0.1.2",
-    "node-twitter-api": "^1.6.0",
     "passport": "0.2.1",
     "passport-facebook": "^2.0.0",
     "passport-google-oauth": "*",
