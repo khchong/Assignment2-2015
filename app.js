@@ -38,6 +38,11 @@ var FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID;
 var FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET;
 var FACEBOOK_CALLBACK_URL = process.env.FACEBOOK_CALLBACK_URL;
 
+// Twitter environment set up
+var TWITTER_APP_ID = process.env.TWITTER_APP_ID;
+var TWITTER_APP_SECRET = process.env.TWITTER_APP_SECRET;
+var TWITTER_CALLBACK_URL = process.env.TWITTER_CALLBACK_URL;
+
 //connect to database
 mongoose.connect(process.env.MONGODB_CONNECTION_URL);
 var db = mongoose.connection;
@@ -181,6 +186,7 @@ passport.use(new InstagramStrategy({
                   // set all of the facebook information in our user model
                   newUser.ig_id    = profile.id; // set the users facebook id                   
                   newUser.ig_access_token = accessToken; // we will save the token that facebook provides to the user                    
+                  newUser.ig_exist = true;
 
                   // save our user to the database
                   newUser.save(function(err) {
@@ -200,6 +206,7 @@ passport.use(new InstagramStrategy({
 
           user.ig_id    = profile.id;
           user.ig_access_token = accessToken;
+          user.ig_exist = true;
 
           user.save(function (err) {
             if(err) {
@@ -250,6 +257,7 @@ passport.use(new FacebookStrategy({
                   // set all of the facebook information in our user model
                   newUser.fb_id    = profile.id; // set the users facebook id                   
                   newUser.fb_access_token = accessToken; // we will save the token that facebook provides to the user                    
+                  newUser.fb_exist = true;
 
                   // save our user to the database
                   newUser.save(function(err) {
@@ -269,6 +277,79 @@ passport.use(new FacebookStrategy({
 
           user.fb_id    = profile.id;
           user.fb_access_token = accessToken;
+          user.fb_exist = true;
+
+          user.save(function (err) {
+            if(err) {
+              console.error('ERROR! CAN NOT UPDATE USER');
+            }
+            return done(null, user);
+
+          });
+        });
+      }
+    });
+  }
+));
+
+
+// Use the TwitterStrategy within Passport.
+//   Strategies in Passport require a `verify` function, which accept
+//   credentials (in this case, an accessToken, refreshToken, and Instagram
+//   profile), and invoke a callback with a user object.
+passport.use(new TwitterStrategy({
+    consumerKey: TWITTER_APP_ID,
+    consumerSecret: TWITTER_APP_SECRET,
+    callbackURL: TWITTER_CALLBACK_URL,
+    passReqToCallback : true // allows us to pass in the req from our route (lets us check if a user is logged in or not)
+  },
+  function(req, accessToken, refreshToken, profile, done) {
+
+    // asynchronous
+    process.nextTick(function() {
+
+      // check if the user is already logged in
+      if (!req.user) {
+
+          // find the user in the database based on their facebook id
+          User.findOne({ 'tw_id' : profile.id }, function(err, user) {
+
+              // if there is an error, stop everything and return that
+              // ie an error connecting to the database
+              if (err)
+                  return done(err);
+
+              // if the user is found, then log them in
+              if (user) {
+                  return done(null, user); // user found, return that user
+              } else {
+                  // if there is no user found with that facebook id, create them
+                  var newUser            = new User();
+
+                  // set all of the facebook information in our user model
+                  newUser.tw_id    = profile.id; // set the users facebook id                   
+                  newUser.tw_access_token = accessToken; // we will save the token that facebook provides to the user                    
+                  newUser.ig_exist = true;
+
+                  // save our user to the database
+                  newUser.save(function(err) {
+                      if (err)
+                          throw err;
+
+                      // if successful, return the new user
+                      return done(null, newUser);
+                  });
+              }
+
+          });
+
+      } else {
+
+        models.User.findOne({email: req.user.email}, function (err, user) {
+
+          user.tw_id    = profile.id;
+          user.tw_access_token = accessToken;
+          user.tw_exist = true;
 
           user.save(function (err) {
             if(err) {
@@ -337,6 +418,13 @@ function ensureAuthenticatedFacebook(req, res, next) {
   res.redirect('/login');
 }
 
+function ensureAuthenticatedTwitter(req, res, next) {
+  if (req.isAuthenticated() && !!req.user.tw_id) { 
+    return next(); 
+  }
+  res.redirect('/login');
+}
+
 /******************************************************************/
 /************************ AUTHENTICATE CODE ***********************/
 /******************************************************************/
@@ -366,6 +454,20 @@ app.get('/auth/facebook/callback',
   function(req, res) {
     res.redirect('/account');
   });
+
+app.get('/auth/twitter',
+  passport.authenticate('twitter'),
+  function(req, res){
+    // The request will be redirected to Instagram for authentication, so this
+    // function will not be called.
+  });
+
+app.get('/auth/twitter/callback', 
+  passport.authenticate('twitter', { failureRedirect: '/login', approvalPrompt: 'force'}),
+  function(req, res) {
+    res.redirect('/account');
+  });
+
 
 /******************************************************************/
 /************************* AUTHORIZE CODE *************************/
@@ -416,6 +518,71 @@ app.get('/connect/google/callback',
         failureRedirect : '/'
     }));
 
+
+
+/******************************************************************/
+/********************** UNLINK ACCOUNTS CODE **********************/
+/******************************************************************/
+
+
+// instagram -------------------------------
+app.get('/unlink/instagram', function(req, res) {
+    
+  models.User.findOne({email: req.user.email}, function (err, user) {
+
+    // change current sessions user as well so redirect is up to date
+    req.user.ig_access_token = undefined;
+    req.user.ig_id = undefined;
+    req.user.ig_exist = false;
+
+    user.ig_access_token = undefined;
+    user.ig_id = undefined;
+    user.ig_exist = false;
+    user.save(function(err) {
+      res.redirect('/account');
+    });
+  });
+});
+
+// facebook -------------------------------
+app.get('/unlink/facebook', function(req, res) {
+
+  models.User.findOne({email: req.user.email}, function (err, user) {
+
+    // change current sessions user as well so redirect is up to date
+    req.user.fb_access_token = undefined;
+    req.user.fb_id = undefined;
+    req.user.fb_exist = false;
+
+    user.fb_access_token = undefined;
+    user.fb_id = undefined;
+    user.fb_exist = false;
+
+    user.save(function(err) {
+        res.redirect('/account');
+    });
+  });
+});
+
+// twitter --------------------------------
+app.get('/unlink/twitter', function(req, res) {
+
+  models.User.findOne({email: req.user.email}, function (err, user) {
+
+    // change current sessions user as well so redirect is up to date
+    req.user.tw_access_token = undefined;
+    req.user.tw_id = undefined;
+    req.user.tw_exist = false;
+
+    user.tw_access_token = undefined;
+    user.tw_id = undefined;
+    user.tw_exist = false;
+
+    user.save(function(err) {
+       res.redirect('/account');
+    });
+  });
+});
 
 
 /******************************************************************/

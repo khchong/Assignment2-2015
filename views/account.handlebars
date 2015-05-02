@@ -1,21 +1,67 @@
 <div class="jumbotron">
 	<p>ID: {{user.email}}</p>
-	<p>Name: {{user.fname}}</p>
-	<p>IG_ID: {{user.ig_id}}</p>
-	<p>FB_ID: {{user.fb_id}}</p>	
+	<p>Name: {{user.fname}} {{user.lname}}</p>
+	{{#if user.ig_exist}}
+		<p>IG_ID: {{user.ig_id}}</p>
+	{{else}}
+		<p>IG_ID: N/A</p>
+	{{/if}}
+
+	{{#if user.fb_exist}}
+		<p>FB_ID: {{user.fb_id}}</p>
+	{{else}}
+		<p>FB_ID: N/A</p>
+	{{/if}}
+
+	{{#if user.tw_exist}}
+		<p>TW_ID: {{user.tw_id}}</p>
+	{{else}}
+		<p>TW_ID: N/A</p>
+	{{/if}}	
+	<a href="/logout" class="btn btn-danger">Logout</a>
 </div>
 
-<p>Connect Your Instagram <a href="/connect/instagram" class="btn btn-success">Link</a></p>
-<p>Connect Your Facebook <a href="/connect/facebook" class="btn btn-success">Link</a></p>
+
+{{#if user.ig_exist}}
+	<p>Disconnect your Instagram <a href="/unlink/instagram" class="btn btn-danger">Unlink</a></p>
+{{else}}
+	<p>Connect to your Instagram <a href="/connect/instagram" class="btn btn-success">Link</a></p>
+{{/if}}
+
+{{#if user.fb_exist}}
+	<p>Disconnect your Facebook <a href="/unlink/facebook" class="btn btn-danger">Unlink</a></p>
+{{else}}
+	<p>Connect to your Facebook <a href="/connect/facebook" class="btn btn-success">Link</a></p>
+{{/if}}
+
+{{#if user.tw_exist}}
+	<p>Disconnect your Twitter <a href="/unlink/twitter" class="btn btn-danger">Unlink</a></p>
+{{else}}
+	<p>Connect to your Twitter <a href="/connect/twitter" class="btn btn-success">Link</a></p>
+{{/if}}
+
+
 <br>
 
-<h3>C3 and D3 visualization for Instagram, Linked Instagram required</h3>
+<h3>C3 and D3 visualization for Instagram</h3>
+{{#if ig_exist}}
 <a href="/c3visualization">view C3 visualization</a>
 <br>
 <a href="/visualization">view D3 visualization</a>
+{{else}}
+	<h5 style="color:red;">You do not have an Instagram account connected! </h5>
+
+	<h5 style="color:red;">Please connect to an Instagram account using the Link Buttons above and you will be able to view these visualizations.</h5>
+{{/if}}
+
 <br>
-<br>
-<h3>D3 visualization for Facebook, Linked Facebook required</h3>
+
+<h3>D3 visualization for Facebook</h3>
+{{#if fb_exist}}
 <a href="/d3visualization2">view D3 visualization (our implementation) </a>
+{{else}}
+	<h5 style="color:red;">You do not have a Facebook account connected! </h5>
+
+	<h5 style="color:red;">Please connect to a Facebook account using the Link Buttons above and you will be able to view this visualization.</h5>
+{{/if}}
 <br>
-<a href="/logout" class="btn btn-danger">Logout</a>
